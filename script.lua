@@ -7,39 +7,17 @@ local RunService = game:GetService("RunService")
 
 -- Field Configuration
 local FIELDS = {
-    ["Blueberry"] = {
-        position = Vector3.new(-750.04, 73.12, -92.81),
-        radius = 50,
-        color = Color3.fromRGB(0, 100, 255)
-    },
-    ["Mushroom"] = {
-        position = Vector3.new(-901.23, 73.12, -120.94),
-        radius = 50,
-        color = Color3.fromRGB(150, 75, 0)
-    },
-    ["Spider"] = {
-        position = Vector3.new(-897.78, 88.38, -228.51),
-        radius = 50,
-        color = Color3.fromRGB(40, 40, 40)
-    },
-    ["Pineapple"] = {
-        position = Vector3.new(-611.13, 117.78, -274.88),
-        radius = 50,
-        color = Color3.fromRGB(255, 200, 0)
-    },
-    ["Clover"] = {
-        position = Vector3.new(-630.33, 90.56, -96.34),
-        radius = 50,
-        color = Color3.fromRGB(0, 180, 0)
-    }
+    ["Blueberry Field"] = Vector3.new(-750.04, 73.12, -92.81),
+    ["Mushroom Field"] = Vector3.new(-901.23, 73.12, -120.94),
+    ["Spider Field"] = Vector3.new(-897.78, 88.38, -228.51),
+    ["Pineapple Field"] = Vector3.new(-611.13, 117.78, -274.88),
+    ["Clover Field"] = Vector3.new(-630.33, 90.56, -96.34)
 }
 
--- Hive Configuration
 local HIVE_POSITION = Vector3.new(-723.39, 74.99, 27.44)
-
--- Other Configuration
 local INACTIVITY_THRESHOLD = 4
 local POLLEN_CHECK_INTERVAL = 0.3
+local FIELD_RADIUS = 50
 local TOKEN_CHECK_INTERVAL = 0.5
 local MAX_TOKEN_DISTANCE = 100
 
@@ -59,7 +37,7 @@ local stationaryTime = 0
 local lastTokenCheck = 0
 local scriptRunning = true
 local guiVisible = true
-local selectedField = "Blueberry" -- Default field
+local selectedField = "Blueberry Field" -- Default field
 
 -- Get references
 local player = Players.LocalPlayer
@@ -76,8 +54,8 @@ screenGui.DisplayOrder = 10
 
 -- Mobile-friendly GUI sizing
 local isMobile = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
-local guiWidth = isMobile and 350 or 300
-local guiHeight = isMobile and 280 or 250
+local guiWidth = isMobile and 320 or 280
+local guiHeight = isMobile and 200 or 170
 
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
@@ -108,7 +86,7 @@ titleCorner.Parent = titleBar
 
 local titleText = Instance.new("TextLabel")
 titleText.Name = "TitleText"
-titleText.Size = UDim2.new(0, 200, 1, 0)
+titleText.Size = UDim2.new(0, 150, 1, 0)
 titleText.Position = UDim2.new(0, 10, 0, 0)
 titleText.BackgroundTransparency = 1
 titleText.Text = "Auto-Farm Controls"
@@ -133,7 +111,7 @@ closeButton.Parent = titleBar
 -- Status text (mobile-friendly size)
 local statusText = Instance.new("TextLabel")
 statusText.Name = "StatusText"
-statusText.Size = UDim2.new(1, -20, 0, isMobile and 80 or 60)
+statusText.Size = UDim2.new(1, -20, 0, isMobile and 60 or 40)
 statusText.Position = UDim2.new(0, 10, 0, isMobile and 50 or 40)
 statusText.BackgroundTransparency = 1
 statusText.Text = "Status: Running\nField: "..selectedField
@@ -144,22 +122,24 @@ statusText.TextSize = isMobile and 14 or 12
 statusText.TextWrapped = true
 statusText.Parent = mainFrame
 
--- Field selection dropdown
+-- Field selection display
 local fieldSelectionFrame = Instance.new("Frame")
-fieldSelectionFrame.Name = "FieldSelection"
+fieldSelectionFrame.Name = "FieldSelectionFrame"
 fieldSelectionFrame.Size = UDim2.new(0.9, 0, 0, isMobile and 40 or 30)
-fieldSelectionFrame.Position = UDim2.new(0.05, 0, 0, isMobile and 140 or 110)
+fieldSelectionFrame.Position = UDim2.new(0.05, 0, 0, isMobile and 120 or 90)
 fieldSelectionFrame.BackgroundColor3 = GUI_COLOR
 fieldSelectionFrame.BackgroundTransparency = 0.4
+fieldSelectionFrame.BorderSizePixel = 0
 fieldSelectionFrame.Parent = mainFrame
 
 local fieldSelectionCorner = uICorner:Clone()
+fieldSelectionCorner.CornerRadius = UDim.new(0, 6)
 fieldSelectionCorner.Parent = fieldSelectionFrame
 
 local fieldSelectionText = Instance.new("TextLabel")
 fieldSelectionText.Name = "FieldSelectionText"
-fieldSelectionText.Size = UDim2.new(0.6, 0, 1, 0)
-fieldSelectionText.Position = UDim2.new(0, 10, 0, 0)
+fieldSelectionText.Size = UDim2.new(0.7, 0, 1, 0)
+fieldSelectionText.Position = UDim2.new(0, 5, 0, 0)
 fieldSelectionText.BackgroundTransparency = 1
 fieldSelectionText.Text = "Field: "..selectedField
 fieldSelectionText.TextColor3 = Color3.new(1, 1, 1)
@@ -170,74 +150,24 @@ fieldSelectionText.Parent = fieldSelectionFrame
 
 local fieldSelectionButton = Instance.new("TextButton")
 fieldSelectionButton.Name = "FieldSelectionButton"
-fieldSelectionButton.Size = UDim2.new(0.3, 0, 0.8, 0)
-fieldSelectionButton.Position = UDim2.new(0.65, 0, 0.1, 0)
+fieldSelectionButton.Size = UDim2.new(0.25, 0, 0.8, 0)
+fieldSelectionButton.Position = UDim2.new(0.75, 0, 0.1, 0)
 fieldSelectionButton.BackgroundColor3 = ACCENT_COLOR
 fieldSelectionButton.Text = "Change"
 fieldSelectionButton.TextColor3 = Color3.new(1, 1, 1)
 fieldSelectionButton.Font = Enum.Font.GothamBold
-fieldSelectionButton.TextSize = isMobile and 14 or 12
+fieldSelectionButton.TextSize = isMobile and 12 or 10
 fieldSelectionButton.Parent = fieldSelectionFrame
 
-local fieldSelectionButtonCorner = uICorner:Clone()
-fieldSelectionButtonCorner.CornerRadius = UDim.new(0, 6)
-fieldSelectionButtonCorner.Parent = fieldSelectionButton
-
--- Field selection dropdown menu
-local fieldDropdown = Instance.new("Frame")
-fieldDropdown.Name = "FieldDropdown"
-fieldDropdown.Size = UDim2.new(0.9, 0, 0, 0)
-fieldDropdown.Position = UDim2.new(0.05, 0, 0, isMobile and 190 or 150)
-fieldDropdown.BackgroundColor3 = GUI_COLOR
-fieldDropdown.BackgroundTransparency = 0.2
-fieldDropdown.Visible = false
-fieldDropdown.ClipsDescendants = true
-fieldDropdown.Parent = mainFrame
-
-local fieldDropdownCorner = uICorner:Clone()
-fieldDropdownCorner.Parent = fieldDropdown
-
-local fieldDropdownList = Instance.new("UIListLayout")
-fieldDropdownList.Padding = UDim.new(0, 2)
-fieldDropdownList.Parent = fieldDropdown
-
--- Create field buttons
-for fieldName, fieldData in pairs(FIELDS) do
-    local fieldButton = Instance.new("TextButton")
-    fieldButton.Name = fieldName.."Button"
-    fieldButton.Size = UDim2.new(1, 0, 0, isMobile and 40 or 30)
-    fieldButton.BackgroundColor3 = fieldData.color
-    fieldButton.BackgroundTransparency = 0.5
-    fieldButton.Text = fieldName
-    fieldButton.TextColor3 = Color3.new(1, 1, 1)
-    fieldButton.Font = Enum.Font.GothamBold
-    fieldButton.TextSize = isMobile and 14 or 12
-    fieldButton.Parent = fieldDropdown
-    
-    local fieldButtonCorner = uICorner:Clone()
-    fieldButtonCorner.CornerRadius = UDim.new(0, 6)
-    fieldButtonCorner.Parent = fieldButton
-    
-    fieldButton.MouseButton1Click:Connect(function()
-        selectedField = fieldName
-        fieldSelectionText.Text = "Field: "..fieldName
-        statusText.Text = "Status: Running\nField: "..fieldName
-        toggleDropdown()
-    end)
-    
-    fieldButton.TouchTap:Connect(function()
-        selectedField = fieldName
-        fieldSelectionText.Text = "Field: "..fieldName
-        statusText.Text = "Status: Running\nField: "..fieldName
-        toggleDropdown()
-    end)
-end
+local fieldSelectionCorner2 = uICorner:Clone()
+fieldSelectionCorner2.CornerRadius = UDim.new(0, 4)
+fieldSelectionCorner2.Parent = fieldSelectionButton
 
 -- Control buttons (mobile-friendly size)
 local toggleButton = Instance.new("TextButton")
 toggleButton.Name = "ToggleButton"
 toggleButton.Size = UDim2.new(0.4, 0, 0, isMobile and 40 or 30)
-toggleButton.Position = UDim2.new(0.05, 0, 0, isMobile and 240 or 200)
+toggleButton.Position = UDim2.new(0.55, 0, 0, isMobile and 120 or 90)
 toggleButton.BackgroundColor3 = ACCENT_COLOR
 toggleButton.Text = "STOP"
 toggleButton.TextColor3 = Color3.new(1, 1, 1)
@@ -248,6 +178,112 @@ toggleButton.Parent = mainFrame
 local toggleCorner = uICorner:Clone()
 toggleCorner.CornerRadius = UDim.new(0, 6)
 toggleCorner.Parent = toggleButton
+
+-- Field selection GUI (separate from main GUI)
+local fieldSelectionGui = Instance.new("ScreenGui")
+fieldSelectionGui.Name = "FieldSelectionGUI"
+fieldSelectionGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+fieldSelectionGui.ResetOnSpawn = false
+fieldSelectionGui.DisplayOrder = 9
+
+local fieldSelectionMain = Instance.new("Frame")
+fieldSelectionMain.Name = "FieldSelectionMain"
+fieldSelectionMain.Size = UDim2.new(0, isMobile and 200 or 180, 0, isMobile and 220 or 200)
+fieldSelectionMain.Position = UDim2.new(0.5, isMobile and 180 or 160, 0.5, -100)
+fieldSelectionMain.AnchorPoint = Vector2.new(0.5, 0.5)
+fieldSelectionMain.BackgroundColor3 = GUI_COLOR
+fieldSelectionMain.BackgroundTransparency = 0.2
+fieldSelectionMain.BorderSizePixel = 0
+fieldSelectionMain.Visible = false
+
+local fieldSelectionCornerMain = uICorner:Clone()
+fieldSelectionCornerMain.Parent = fieldSelectionMain
+
+local fieldSelectionTitle = Instance.new("TextLabel")
+fieldSelectionTitle.Name = "FieldSelectionTitle"
+fieldSelectionTitle.Size = UDim2.new(1, 0, 0, isMobile and 40 or 30)
+fieldSelectionTitle.Position = UDim2.new(0, 0, 0, 0)
+fieldSelectionTitle.BackgroundColor3 = GUI_COLOR
+fieldSelectionTitle.BackgroundTransparency = 0.4
+fieldSelectionTitle.Text = "Select Field"
+fieldSelectionTitle.TextColor3 = Color3.new(1, 1, 1)
+fieldSelectionTitle.Font = Enum.Font.GothamSemibold
+fieldSelectionTitle.TextSize = isMobile and 16 or 14
+fieldSelectionTitle.Parent = fieldSelectionMain
+
+local fieldSelectionTitleCorner = uICorner:Clone()
+fieldSelectionTitleCorner.Parent = fieldSelectionTitle
+
+local fieldSelectionScroller = Instance.new("ScrollingFrame")
+fieldSelectionScroller.Name = "FieldSelectionScroller"
+fieldSelectionScroller.Size = UDim2.new(1, -10, 1, isMobile and -50 or -40)
+fieldSelectionScroller.Position = UDim2.new(0, 5, 0, isMobile and 45 or 35)
+fieldSelectionScroller.BackgroundTransparency = 1
+fieldSelectionScroller.ScrollBarThickness = 5
+fieldSelectionScroller.Parent = fieldSelectionMain
+
+local fieldSelectionLayout = Instance.new("UIListLayout")
+fieldSelectionLayout.Padding = UDim.new(0, 5)
+fieldSelectionLayout.Parent = fieldSelectionScroller
+
+-- Create field buttons
+for fieldName, _ in pairs(FIELDS) do
+    local fieldButton = Instance.new("TextButton")
+    fieldButton.Name = fieldName
+    fieldButton.Size = UDim2.new(1, -10, 0, isMobile and 40 or 30)
+    fieldButton.BackgroundColor3 = GUI_COLOR
+    fieldButton.BackgroundTransparency = 0.6
+    fieldButton.Text = fieldName
+    fieldButton.TextColor3 = Color3.new(1, 1, 1)
+    fieldButton.Font = Enum.Font.Gotham
+    fieldButton.TextSize = isMobile and 14 or 12
+    fieldButton.Parent = fieldSelectionScroller
+    
+    local fieldButtonCorner = uICorner:Clone()
+    fieldButtonCorner.Parent = fieldButton
+    
+    fieldButton.MouseButton1Click:Connect(function()
+        selectedField = fieldName
+        fieldSelectionText.Text = "Field: "..selectedField
+        statusText.Text = "Status: Running\nField: "..selectedField
+        fieldSelectionMain.Visible = false
+        -- Immediately pathfind to new field if script is running
+        if scriptRunning then
+            pathfindTo(FIELDS[selectedField], selectedField)
+        end
+    end)
+    
+    fieldButton.TouchTap:Connect(function()
+        selectedField = fieldName
+        fieldSelectionText.Text = "Field: "..selectedField
+        statusText.Text = "Status: Running\nField: "..selectedField
+        fieldSelectionMain.Visible = false
+        -- Immediately pathfind to new field if script is running
+        if scriptRunning then
+            pathfindTo(FIELDS[selectedField], selectedField)
+        end
+    end)
+end
+
+-- Close button for field selection
+local fieldSelectionClose = Instance.new("TextButton")
+fieldSelectionClose.Name = "FieldSelectionClose"
+fieldSelectionClose.Size = UDim2.new(0, isMobile and 40 or 30, 0, isMobile and 40 or 30)
+fieldSelectionClose.Position = UDim2.new(1, isMobile and -40 or -30, 0, 0)
+fieldSelectionClose.BackgroundTransparency = 1
+fieldSelectionClose.Text = "X"
+fieldSelectionClose.TextColor3 = Color3.new(1, 1, 1)
+fieldSelectionClose.Font = Enum.Font.GothamBold
+fieldSelectionClose.TextSize = isMobile and 20 or 16
+fieldSelectionClose.Parent = fieldSelectionTitle
+
+fieldSelectionClose.MouseButton1Click:Connect(function()
+    fieldSelectionMain.Visible = false
+end)
+
+fieldSelectionClose.TouchTap:Connect(function()
+    fieldSelectionMain.Visible = false
+end)
 
 -- Reopen button (hidden by default)
 local reopenButton = Instance.new("TextButton")
@@ -266,44 +302,15 @@ local reopenCorner = uICorner:Clone()
 reopenCorner.CornerRadius = UDim.new(0, 6)
 reopenCorner.Parent = reopenButton
 
--- Make sure GUI is properly parented
+-- Make sure GUIs are properly parented
 screenGui.Parent = player:WaitForChild("PlayerGui")
 mainFrame.Parent = screenGui
+fieldSelectionGui.Parent = player:WaitForChild("PlayerGui")
+fieldSelectionMain.Parent = fieldSelectionGui
 
 -- Mobile-friendly touch controls
 local function isTouchInput(input)
     return input.UserInputType == Enum.UserInputType.Touch
-end
-
--- Toggle dropdown visibility
-local function toggleDropdown()
-    if fieldDropdown.Visible then
-        fieldDropdown:TweenSize(
-            UDim2.new(0.9, 0, 0, 0),
-            Enum.EasingDirection.Out,
-            Enum.EasingStyle.Quad,
-            0.2,
-            true,
-            function()
-                fieldDropdown.Visible = false
-            end
-        )
-    else
-        fieldDropdown.Visible = true
-        local dropdownHeight = 0
-        for _, child in ipairs(fieldDropdown:GetChildren()) do
-            if child:IsA("TextButton") then
-                dropdownHeight = dropdownHeight + child.AbsoluteSize.Y + 2
-            end
-        end
-        fieldDropdown.Size = UDim2.new(0.9, 0, 0, 0)
-        fieldDropdown:TweenSize(
-            UDim2.new(0.9, 0, 0, math.min(dropdownHeight, isMobile and 200 or 150)),
-            Enum.EasingDirection.Out,
-            Enum.EasingStyle.Quad,
-            0.2
-        )
-    end
 end
 
 -- Make GUI draggable (mobile-friendly version)
@@ -349,6 +356,9 @@ local function toggleGUI(visible)
     mainFrame.Visible = guiVisible
     reopenButton.Visible = not guiVisible
     closeButton.Text = guiVisible and "─" or "+"
+    if fieldSelectionMain.Visible then
+        fieldSelectionMain.Visible = false
+    end
 end
 
 closeButton.MouseButton1Click:Connect(function()
@@ -359,10 +369,6 @@ end)
 closeButton.TouchTap:Connect(function()
     toggleGUI(not guiVisible)
 end)
-
--- Field selection button
-fieldSelectionButton.MouseButton1Click:Connect(toggleDropdown)
-fieldSelectionButton.TouchTap:Connect(toggleDropdown)
 
 -- Reopen button functionality
 reopenButton.MouseButton1Click:Connect(function()
@@ -383,6 +389,14 @@ end
 
 toggleButton.MouseButton1Click:Connect(toggleScript)
 toggleButton.TouchTap:Connect(toggleScript)
+
+-- Toggle field selection GUI
+local function toggleFieldSelection()
+    fieldSelectionMain.Visible = not fieldSelectionMain.Visible
+end
+
+fieldSelectionButton.MouseButton1Click:Connect(toggleFieldSelection)
+fieldSelectionButton.TouchTap:Connect(toggleFieldSelection)
 
 -- Pollen detection
 local function getCurrentPollen()
@@ -503,10 +517,10 @@ local function convertPollen()
     
     isConverting = false
     if success and getCurrentPollen() <= 0 then
-        if statusText then statusText.Text = "Converted!\nField: "..selectedField end
+        if statusText then statusText.Text = "Converted!" end
         return true
     else
-        if statusText then statusText.Text = "Conversion failed\nField: "..selectedField end
+        if statusText then statusText.Text = "Conversion failed" end
         return false
     end
 end
@@ -529,47 +543,12 @@ while true do
 
     if scriptRunning then
         local currentPollen = getCurrentPollen()
-        local currentFieldData = FIELDS[selectedField]
+        local currentFieldPos = FIELDS[selectedField]
         local atField = character:FindFirstChild("HumanoidRootPart") and 
-                       (character.HumanoidRootPart.Position - currentFieldData.position).Magnitude < currentFieldData.radius
+                       (character.HumanoidRootPart.Position - currentFieldPos).Magnitude < FIELD_RADIUS
         local isStationary = checkIfStationary()
 
         -- Update status text
         if atField then
             if currentPollen > lastPollenValue then
-                statusText.Text = string.format("Status: Collecting\nField: %s\nPollen: %d (+%d)", selectedField, currentPollen, currentPollen - lastPollenValue)
-            else
-                statusText.Text = string.format("Status: Collecting\nField: %s\nPollen: %d", selectedField, currentPollen)
-            end
-        elseif currentLocation == "Hive" then
-            statusText.Text = "Status: Converting pollen\nField: "..selectedField
-        end
-
-        -- Always try to collect tokens
-        collectTokens()
-
-        if not isPathfinding and not isConverting then
-            -- Field collection logic
-            if atField then
-                if currentPollen > lastPollenValue then
-                    lastPollenValue = currentPollen
-                    lastIncreaseTime = os.time()
-                else
-                    local inactiveTime = os.time() - lastIncreaseTime
-                    if inactiveTime >= INACTIVITY_THRESHOLD and currentPollen > 0 then
-                        pathfindTo(HIVE_POSITION, "Hive")
-                    end
-                end
-                
-            -- Hive conversion logic
-            elseif currentLocation == "Hive" then
-                if currentPollen > 0 then
-                    if convertPollen() then
-                        pathfindTo(currentFieldData.position, "Field")
-                        lastPollenValue = 0
-                        lastIncreaseTime = os.time()
-                    end
-                else
-                    pathfindTo(currentFieldData.position, "Field")
-                    lastPollenValue = 0
-                
+                statusText.Text = string.format("Status: Collecting\nPollen: 
