@@ -1,12 +1,3 @@
-local player = game.Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-
-while true do
-    wait(0.1)
-    if character:FindFirstChild("Humanoid") then
-        character.Humanoid.WalkSpeed = 65
-    end
-end
 -- Create the main frame
 local player = game:GetService("Players").LocalPlayer
 local gui = Instance.new("ScreenGui")
