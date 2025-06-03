@@ -739,3 +739,85 @@ while true do
     end
     wait(POLLEN_CHECK_INTERVAL)
 end
+
+-- [Your entire existing auto-farm script goes here]
+-- Don't remove any of your original code
+-- Just add this at the very end:
+
+-- ==============================================
+-- AUTO-SAVE SETTINGS SYSTEM (ADD THIS AT THE END)
+-- ==============================================
+
+local HttpService = game:GetService("HttpService")
+local SETTINGS_FILE_NAME = "BeeSwarmAutoFarmSettings.json"
+
+-- Function to save settings
+local function saveSettings()
+    local settings = {
+        fieldPosition = {X = currentFieldPos.X, Y = currentFieldPos.Y, Z = currentFieldPos.Z},
+        hivePosition = {X = HIVE_POSITION.X, Y = HIVE_POSITION.Y, Z = HIVE_POSITION.Z}
+    }
+    
+    pcall(function()
+        local json = HttpService:JSONEncode(settings)
+        if not isfolder("BeeSwarmAutoFarm") then
+            makefolder("BeeSwarmAutoFarm")
+        end
+        writefile("BeeSwarmAutoFarm/"..SETTINGS_FILE_NAME, json)
+    end)
+end
+
+-- Function to load settings
+local function loadSettings()
+    local defaultField = Vector3.new(-750.04, 73.12, -92.81)
+    local defaultHive = Vector3.new(-723.39, 74.99, 27.44)
+    
+    if not isfolder("BeeSwarmAutoFarm") or not isfile("BeeSwarmAutoFarm/"..SETTINGS_FILE_NAME) then
+        return defaultField, defaultHive
+    end
+    
+    local success, settings = pcall(function()
+        local json = readfile("BeeSwarmAutoFarm/"..SETTINGS_FILE_NAME)
+        return HttpService:JSONDecode(json)
+    end)
+    
+    if not success or not settings then
+        return defaultField, defaultHive
+    end
+    
+    return Vector3.new(settings.fieldPosition.X, settings.fieldPosition.Y, settings.fieldPosition.Z),
+           Vector3.new(settings.hivePosition.X, settings.hivePosition.Y, settings.hivePosition.Z)
+end
+
+-- Load saved settings when script starts
+local loadedField, loadedHive = loadSettings()
+currentFieldPos = loadedField
+HIVE_POSITION = loadedHive
+
+-- Update the input boxes to show loaded values
+fieldInputBox.Text = string.format("Vector3.new(%d, %d, %d)", currentFieldPos.X, currentFieldPos.Y, currentFieldPos.Z)
+hiveInputBox.Text = string.format("Vector3.new(%d, %d, %d)", HIVE_POSITION.X, HIVE_POSITION.Y, HIVE_POSITION.Z)
+
+-- Save settings whenever coordinates change
+fieldSetButton.MouseButton1Click:Connect(function()
+    wait(0.1) -- Small delay to ensure values are updated
+    saveSettings()
+end)
+
+hiveSetButton.MouseButton1Click:Connect(function()
+    wait(0.1) -- Small delay to ensure values are updated
+    saveSettings()
+end)
+
+-- Also connect touch events for mobile
+if isMobile then
+    fieldSetButton.TouchTap:Connect(function()
+        wait(0.1)
+        saveSettings()
+    end)
+    
+    hiveSetButton.TouchTap:Connect(function()
+        wait(0.1)
+        saveSettings()
+    end)
+end
