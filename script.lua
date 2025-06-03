@@ -1,3 +1,139 @@
+-- Create the main frame
+local player = game:GetService("Players").LocalPlayer
+local gui = Instance.new("ScreenGui")
+gui.Name = "CoordinateCopier"
+gui.ResetOnSpawn = false
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 200, 0, 120)
+mainFrame.Position = UDim2.new(0.5, -100, 0.5, -60)
+mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+mainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = gui
+
+-- Add title
+local title = Instance.new("TextLabel")
+title.Name = "Title"
+title.Size = UDim2.new(1, 0, 0, 30)
+title.Position = UDim2.new(0, 0, 0, 0)
+title.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+title.BorderSizePixel = 0
+title.Text = "Coordinate Copier"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.Font = Enum.Font.SourceSansBold
+title.TextSize = 18
+title.Parent = mainFrame
+
+-- Add close button
+local closeButton = Instance.new("TextButton")
+closeButton.Name = "CloseButton"
+closeButton.Size = UDim2.new(0, 30, 0, 30)
+closeButton.Position = UDim2.new(1, -30, 0, 0)
+closeButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+closeButton.BorderSizePixel = 0
+closeButton.Text = "X"
+closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeButton.Font = Enum.Font.SourceSansBold
+closeButton.TextSize = 18
+closeButton.Parent = mainFrame
+
+closeButton.MouseButton1Click:Connect(function()
+    gui:Destroy()
+end)
+
+-- Add coordinate display
+local coordDisplay = Instance.new("TextLabel")
+coordDisplay.Name = "CoordDisplay"
+coordDisplay.Size = UDim2.new(1, -20, 0, 40)
+coordDisplay.Position = UDim2.new(0, 10, 0, 40)
+coordDisplay.BackgroundTransparency = 1
+coordDisplay.Text = "Position will appear here"
+coordDisplay.TextColor3 = Color3.fromRGB(200, 200, 200)
+coordDisplay.Font = Enum.Font.SourceSans
+coordDisplay.TextSize = 14
+coordDisplay.TextWrapped = true
+coordDisplay.Parent = mainFrame
+
+-- Add copy button
+local copyButton = Instance.new("TextButton")
+copyButton.Name = "CopyButton"
+copyButton.Size = UDim2.new(1, -20, 0, 30)
+copyButton.Position = UDim2.new(0, 10, 0, 85)
+copyButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+copyButton.BorderSizePixel = 0
+copyButton.Text = "Copy Coordinates"
+copyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+copyButton.Font = Enum.Font.SourceSans
+copyButton.TextSize = 16
+copyButton.Parent = mainFrame
+
+-- Function to update coordinates
+local function updateCoordinates()
+    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        local position = player.Character.HumanoidRootPart.Position
+        local x = math.floor(position.X * 100) / 100
+        local y = math.floor(position.Y * 100) / 100
+        local z = math.floor(position.Z * 100) / 100
+        coordDisplay.Text = string.format("Vector3.new(%.2f, %.2f, %.2f)", x, y, z)
+    else
+        coordDisplay.Text = "Character not found"
+    end
+end
+
+-- Update coordinates periodically
+game:GetService("RunService").Heartbeat:Connect(updateCoordinates)
+
+-- Copy to clipboard function
+copyButton.MouseButton1Click:Connect(function()
+    if coordDisplay.Text ~= "Position will appear here" and coordDisplay.Text ~= "Character not found" then
+        setclipboard(coordDisplay.Text)
+        copyButton.Text = "Copied!"
+        wait(1)
+        copyButton.Text = "Copy Coordinates"
+    end
+end)
+
+-- Make the frame draggable
+local dragging
+local dragInput
+local dragStart
+local startPos
+
+local function update(input)
+    local delta = input.Position - dragStart
+    mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+
+mainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+        
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+mainFrame.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+game:GetService("UserInputService").InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        update(input)
+    end
+end)
+
+-- Parent the GUI to the player
+gui.Parent = player:WaitForChild("PlayerGui")
 local Players = game:GetService("Players")
 local PathfindingService = game:GetService("PathfindingService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
