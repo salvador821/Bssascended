@@ -1,3 +1,118 @@
+-- LocalScript (place in StarterPlayerScripts or StarterCharacterScripts)
+local player = game:GetService("Players").LocalPlayer
+local guiService = game:GetService("GuiService")
+local textService = game:GetService("TextService")
+local runService = game:GetService("RunService")
+
+-- Create screen GUI
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "CoordinateCopier"
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+-- Create the button
+local button = Instance.new("TextButton")
+button.Name = "CopyButton"
+button.Size = UDim2.new(0, 200, 0, 50)
+button.Position = UDim2.new(0.5, -100, 1, -60) -- Bottom center
+button.AnchorPoint = Vector2.new(0.5, 0)
+button.BackgroundColor3 = Color3.fromRGB(30, 136, 229)
+button.TextColor3 = Color3.fromRGB(255, 255, 255)
+button.Text = "Copy Position"
+button.Font = Enum.Font.SourceSansBold
+button.TextSize = 18
+button.Parent = screenGui
+
+-- Add rounded corners
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 8)
+corner.Parent = button
+
+-- Add padding
+local padding = Instance.new("UIPadding")
+padding.PaddingTop = UDim.new(0, 5)
+padding.PaddingBottom = UDim.new(0, 5)
+padding.PaddingLeft = UDim.new(0, 10)
+padding.PaddingRight = UDim.new(0, 10)
+padding.Parent = button
+
+-- Function to get current position
+local function getCurrentPosition()
+    local character = player.Character or player.CharacterAdded:Wait()
+    local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
+    
+    if rootPart then
+        local position = rootPart.Position
+        return string.format("Vector3.new(%.2f, %.2f, %.2f)", position.X, position.Y, position.Z)
+    end
+    return nil
+end
+
+-- Function to copy to clipboard
+local function copyToClipboard(text)
+    if setclipboard then
+        setclipboard(text)
+        return true
+    elseif toclipboard then
+        toclipboard(text)
+        return true
+    elseif Clipboard and Clipboard.set then
+        Clipboard.set(text)
+        return true
+    end
+    return false
+end
+
+-- Button click handler
+button.MouseButton1Click:Connect(function()
+    local positionText = getCurrentPosition()
+    if positionText then
+        if copyToClipboard(positionText) then
+            -- Show confirmation
+            button.Text = "Copied!"
+            task.wait(1)
+            button.Text = "Copy Position"
+            
+            -- For mobile devices that support notifications
+            if guiService:IsTenFootInterface() or game:GetService("UserInputService"):GetPlatform() == Enum.Platform.IOS or game:GetService("UserInputService"):GetPlatform() == Enum.Platform.Android then
+                local notification = Instance.new("TextLabel")
+                notification.Name = "Notification"
+                notification.Text = "Coordinates copied!"
+                notification.Size = UDim2.new(0, 200, 0, 40)
+                notification.Position = UDim2.new(0.5, -100, 0.5, -20)
+                notification.AnchorPoint = Vector2.new(0.5, 0.5)
+                notification.BackgroundColor3 = Color3.fromRGB(46, 125, 50)
+                notification.TextColor3 = Color3.fromRGB(255, 255, 255)
+                notification.Font = Enum.Font.SourceSansBold
+                notification.TextSize = 18
+                notification.ZIndex = 10
+                
+                local notifCorner = Instance.new("UICorner")
+                notifCorner.CornerRadius = UDim.new(0, 8)
+                notifCorner.Parent = notification
+                
+                notification.Parent = screenGui
+                
+                task.delay(2, function()
+                    notification:Destroy()
+                end)
+            end
+        else
+            button.Text = "Copy Failed"
+            task.wait(1)
+            button.Text = "Copy Position"
+        end
+    else
+        button.Text = "No Position"
+        task.wait(1)
+        button.Text = "Copy Position"
+    end
+end)
+
+-- Make the button respond to touch for mobile devices
+if runService:IsStudio() or game:GetService("UserInputService").TouchEnabled then
+    button.Active = true
+    button.SelectionImageObject = Instance.new("ImageLabel")
+end
 local Players = game:GetService("Players")
 local PathfindingService = game:GetService("PathfindingService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -5,16 +120,10 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
--- Field Configuration
-local FIELDS = {
-    ["Blueberry Field"] = Vector3.new(-750.04, 73.12, -92.81),
-    ["Mushroom Field"] = Vector3.new(-901.23, 73.12, -120.94),
-    ["Spider Field"] = Vector3.new(-897.78, 88.38, -228.51),
-    ["Pineapple Field"] = Vector3.new(-611.13, 117.78, -274.88),
-    ["Clover Field"] = Vector3.new(-630.33, 90.56, -96.34)
-}
+-- Field Configuration (now customizable)
+local currentFieldPos = Vector3.new(-750.04, 73.12, -92.81) -- Default field position
+local HIVE_POSITION = Vector3.new(-723.39, 74.99, 27.44) -- Default hive position
 
-local HIVE_POSITION = Vector3.new(-723.39, 74.99, 27.44)
 local INACTIVITY_THRESHOLD = 4
 local POLLEN_CHECK_INTERVAL = 0.3
 local FIELD_RADIUS = 50
@@ -37,7 +146,6 @@ local stationaryTime = 0
 local lastTokenCheck = 0
 local scriptRunning = true
 local guiVisible = true
-local selectedField = "Blueberry Field" -- Default field
 
 -- Get references
 local player = Players.LocalPlayer
@@ -55,7 +163,7 @@ screenGui.DisplayOrder = 10
 -- Mobile-friendly GUI sizing
 local isMobile = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
 local guiWidth = isMobile and 320 or 280
-local guiHeight = isMobile and 200 or 170
+local guiHeight = isMobile and 240 or 210 -- Increased height for new input boxes
 
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
@@ -114,7 +222,7 @@ statusText.Name = "StatusText"
 statusText.Size = UDim2.new(1, -20, 0, isMobile and 60 or 40)
 statusText.Position = UDim2.new(0, 10, 0, isMobile and 50 or 40)
 statusText.BackgroundTransparency = 1
-statusText.Text = "Status: Running\nField: "..selectedField
+statusText.Text = "Status: Running\nField: Custom"
 statusText.TextColor3 = Color3.new(1, 1, 1)
 statusText.TextXAlignment = Enum.TextXAlignment.Left
 statusText.Font = Enum.Font.Gotham
@@ -122,52 +230,103 @@ statusText.TextSize = isMobile and 14 or 12
 statusText.TextWrapped = true
 statusText.Parent = mainFrame
 
--- Field selection display
-local fieldSelectionFrame = Instance.new("Frame")
-fieldSelectionFrame.Name = "FieldSelectionFrame"
-fieldSelectionFrame.Size = UDim2.new(0.9, 0, 0, isMobile and 40 or 30)
-fieldSelectionFrame.Position = UDim2.new(0.05, 0, 0, isMobile and 120 or 90)
-fieldSelectionFrame.BackgroundColor3 = GUI_COLOR
-fieldSelectionFrame.BackgroundTransparency = 0.4
-fieldSelectionFrame.BorderSizePixel = 0
-fieldSelectionFrame.Parent = mainFrame
+-- Field Coordinates Input
+local fieldInputFrame = Instance.new("Frame")
+fieldInputFrame.Name = "FieldInputFrame"
+fieldInputFrame.Size = UDim2.new(0.9, 0, 0, isMobile and 40 or 30)
+fieldInputFrame.Position = UDim2.new(0.05, 0, 0, isMobile and 120 or 90)
+fieldInputFrame.BackgroundColor3 = GUI_COLOR
+fieldInputFrame.BackgroundTransparency = 0.4
+fieldInputFrame.BorderSizePixel = 0
+fieldInputFrame.Parent = mainFrame
 
-local fieldSelectionCorner = uICorner:Clone()
-fieldSelectionCorner.CornerRadius = UDim.new(0, 6)
-fieldSelectionCorner.Parent = fieldSelectionFrame
+local fieldInputCorner = uICorner:Clone()
+fieldInputCorner.CornerRadius = UDim.new(0, 6)
+fieldInputCorner.Parent = fieldInputFrame
 
-local fieldSelectionText = Instance.new("TextLabel")
-fieldSelectionText.Name = "FieldSelectionText"
-fieldSelectionText.Size = UDim2.new(0.7, 0, 1, 0)
-fieldSelectionText.Position = UDim2.new(0, 5, 0, 0)
-fieldSelectionText.BackgroundTransparency = 1
-fieldSelectionText.Text = "Field: "..selectedField
-fieldSelectionText.TextColor3 = Color3.new(1, 1, 1)
-fieldSelectionText.TextXAlignment = Enum.TextXAlignment.Left
-fieldSelectionText.Font = Enum.Font.Gotham
-fieldSelectionText.TextSize = isMobile and 14 or 12
-fieldSelectionText.Parent = fieldSelectionFrame
+local fieldInputBox = Instance.new("TextBox")
+fieldInputBox.Name = "FieldInputBox"
+fieldInputBox.Size = UDim2.new(0.6, 0, 0.8, 0)
+fieldInputBox.Position = UDim2.new(0.05, 0, 0.1, 0)
+fieldInputBox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+fieldInputBox.BackgroundTransparency = 0.5
+fieldInputBox.Text = tostring(currentFieldPos)
+fieldInputBox.TextColor3 = Color3.new(1, 1, 1)
+fieldInputBox.PlaceholderText = "Ex: Vector3.new(-750,73,-92)"
+fieldInputBox.Font = Enum.Font.Gotham
+fieldInputBox.TextSize = isMobile and 12 or 10
+fieldInputBox.Parent = fieldInputFrame
 
-local fieldSelectionButton = Instance.new("TextButton")
-fieldSelectionButton.Name = "FieldSelectionButton"
-fieldSelectionButton.Size = UDim2.new(0.25, 0, 0.8, 0)
-fieldSelectionButton.Position = UDim2.new(0.75, 0, 0.1, 0)
-fieldSelectionButton.BackgroundColor3 = ACCENT_COLOR
-fieldSelectionButton.Text = "Change"
-fieldSelectionButton.TextColor3 = Color3.new(1, 1, 1)
-fieldSelectionButton.Font = Enum.Font.GothamBold
-fieldSelectionButton.TextSize = isMobile and 12 or 10
-fieldSelectionButton.Parent = fieldSelectionFrame
+local fieldInputCorner2 = uICorner:Clone()
+fieldInputCorner2.CornerRadius = UDim.new(0, 4)
+fieldInputCorner2.Parent = fieldInputBox
 
-local fieldSelectionCorner2 = uICorner:Clone()
-fieldSelectionCorner2.CornerRadius = UDim.new(0, 4)
-fieldSelectionCorner2.Parent = fieldSelectionButton
+local fieldSetButton = Instance.new("TextButton")
+fieldSetButton.Name = "FieldSetButton"
+fieldSetButton.Size = UDim2.new(0.3, 0, 0.8, 0)
+fieldSetButton.Position = UDim2.new(0.65, 0, 0.1, 0)
+fieldSetButton.BackgroundColor3 = ACCENT_COLOR
+fieldSetButton.Text = "Set"
+fieldSetButton.TextColor3 = Color3.new(1, 1, 1)
+fieldSetButton.Font = Enum.Font.GothamBold
+fieldSetButton.TextSize = isMobile and 12 or 10
+fieldSetButton.Parent = fieldInputFrame
+
+local fieldSetCorner = uICorner:Clone()
+fieldSetCorner.CornerRadius = UDim.new(0, 4)
+fieldSetCorner.Parent = fieldSetButton
+
+-- Hive Coordinates Input
+local hiveInputFrame = Instance.new("Frame")
+hiveInputFrame.Name = "HiveInputFrame"
+hiveInputFrame.Size = UDim2.new(0.9, 0, 0, isMobile and 40 or 30)
+hiveInputFrame.Position = UDim2.new(0.05, 0, 0, isMobile and 170 or 130)
+hiveInputFrame.BackgroundColor3 = GUI_COLOR
+hiveInputFrame.BackgroundTransparency = 0.4
+hiveInputFrame.BorderSizePixel = 0
+hiveInputFrame.Parent = mainFrame
+
+local hiveInputCorner = uICorner:Clone()
+hiveInputCorner.CornerRadius = UDim.new(0, 6)
+hiveInputCorner.Parent = hiveInputFrame
+
+local hiveInputBox = Instance.new("TextBox")
+hiveInputBox.Name = "HiveInputBox"
+hiveInputBox.Size = UDim2.new(0.6, 0, 0.8, 0)
+hiveInputBox.Position = UDim2.new(0.05, 0, 0.1, 0)
+hiveInputBox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+hiveInputBox.BackgroundTransparency = 0.5
+hiveInputBox.Text = tostring(HIVE_POSITION)
+hiveInputBox.TextColor3 = Color3.new(1, 1, 1)
+hiveInputBox.PlaceholderText = "Ex: Vector3.new(-723,74,27)"
+hiveInputBox.Font = Enum.Font.Gotham
+hiveInputBox.TextSize = isMobile and 12 or 10
+hiveInputBox.Parent = hiveInputFrame
+
+local hiveInputCorner2 = uICorner:Clone()
+hiveInputCorner2.CornerRadius = UDim.new(0, 4)
+hiveInputCorner2.Parent = hiveInputBox
+
+local hiveSetButton = Instance.new("TextButton")
+hiveSetButton.Name = "HiveSetButton"
+hiveSetButton.Size = UDim2.new(0.3, 0, 0.8, 0)
+hiveSetButton.Position = UDim2.new(0.65, 0, 0.1, 0)
+hiveSetButton.BackgroundColor3 = ACCENT_COLOR
+hiveSetButton.Text = "Set"
+hiveSetButton.TextColor3 = Color3.new(1, 1, 1)
+hiveSetButton.Font = Enum.Font.GothamBold
+hiveSetButton.TextSize = isMobile and 12 or 10
+hiveSetButton.Parent = hiveInputFrame
+
+local hiveSetCorner = uICorner:Clone()
+hiveSetCorner.CornerRadius = UDim.new(0, 4)
+hiveSetCorner.Parent = hiveSetButton
 
 -- Control buttons (mobile-friendly size)
 local toggleButton = Instance.new("TextButton")
 toggleButton.Name = "ToggleButton"
 toggleButton.Size = UDim2.new(0.4, 0, 0, isMobile and 40 or 30)
-toggleButton.Position = UDim2.new(0.55, 0, 0, isMobile and 120 or 90)
+toggleButton.Position = UDim2.new(0.55, 0, 0, isMobile and 220 or 170) -- Adjusted position
 toggleButton.BackgroundColor3 = ACCENT_COLOR
 toggleButton.Text = "STOP"
 toggleButton.TextColor3 = Color3.new(1, 1, 1)
@@ -178,112 +337,6 @@ toggleButton.Parent = mainFrame
 local toggleCorner = uICorner:Clone()
 toggleCorner.CornerRadius = UDim.new(0, 6)
 toggleCorner.Parent = toggleButton
-
--- Field selection GUI (separate from main GUI)
-local fieldSelectionGui = Instance.new("ScreenGui")
-fieldSelectionGui.Name = "FieldSelectionGUI"
-fieldSelectionGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-fieldSelectionGui.ResetOnSpawn = false
-fieldSelectionGui.DisplayOrder = 9
-
-local fieldSelectionMain = Instance.new("Frame")
-fieldSelectionMain.Name = "FieldSelectionMain"
-fieldSelectionMain.Size = UDim2.new(0, isMobile and 200 or 180, 0, isMobile and 220 or 200)
-fieldSelectionMain.Position = UDim2.new(0.5, isMobile and 180 or 160, 0.5, -100)
-fieldSelectionMain.AnchorPoint = Vector2.new(0.5, 0.5)
-fieldSelectionMain.BackgroundColor3 = GUI_COLOR
-fieldSelectionMain.BackgroundTransparency = 0.2
-fieldSelectionMain.BorderSizePixel = 0
-fieldSelectionMain.Visible = false
-
-local fieldSelectionCornerMain = uICorner:Clone()
-fieldSelectionCornerMain.Parent = fieldSelectionMain
-
-local fieldSelectionTitle = Instance.new("TextLabel")
-fieldSelectionTitle.Name = "FieldSelectionTitle"
-fieldSelectionTitle.Size = UDim2.new(1, 0, 0, isMobile and 40 or 30)
-fieldSelectionTitle.Position = UDim2.new(0, 0, 0, 0)
-fieldSelectionTitle.BackgroundColor3 = GUI_COLOR
-fieldSelectionTitle.BackgroundTransparency = 0.4
-fieldSelectionTitle.Text = "Select Field"
-fieldSelectionTitle.TextColor3 = Color3.new(1, 1, 1)
-fieldSelectionTitle.Font = Enum.Font.GothamSemibold
-fieldSelectionTitle.TextSize = isMobile and 16 or 14
-fieldSelectionTitle.Parent = fieldSelectionMain
-
-local fieldSelectionTitleCorner = uICorner:Clone()
-fieldSelectionTitleCorner.Parent = fieldSelectionTitle
-
-local fieldSelectionScroller = Instance.new("ScrollingFrame")
-fieldSelectionScroller.Name = "FieldSelectionScroller"
-fieldSelectionScroller.Size = UDim2.new(1, -10, 1, isMobile and -50 or -40)
-fieldSelectionScroller.Position = UDim2.new(0, 5, 0, isMobile and 45 or 35)
-fieldSelectionScroller.BackgroundTransparency = 1
-fieldSelectionScroller.ScrollBarThickness = 5
-fieldSelectionScroller.Parent = fieldSelectionMain
-
-local fieldSelectionLayout = Instance.new("UIListLayout")
-fieldSelectionLayout.Padding = UDim.new(0, 5)
-fieldSelectionLayout.Parent = fieldSelectionScroller
-
--- Create field buttons
-for fieldName, _ in pairs(FIELDS) do
-    local fieldButton = Instance.new("TextButton")
-    fieldButton.Name = fieldName
-    fieldButton.Size = UDim2.new(1, -10, 0, isMobile and 40 or 30)
-    fieldButton.BackgroundColor3 = GUI_COLOR
-    fieldButton.BackgroundTransparency = 0.6
-    fieldButton.Text = fieldName
-    fieldButton.TextColor3 = Color3.new(1, 1, 1)
-    fieldButton.Font = Enum.Font.Gotham
-    fieldButton.TextSize = isMobile and 14 or 12
-    fieldButton.Parent = fieldSelectionScroller
-    
-    local fieldButtonCorner = uICorner:Clone()
-    fieldButtonCorner.Parent = fieldButton
-    
-    fieldButton.MouseButton1Click:Connect(function()
-        selectedField = fieldName
-        fieldSelectionText.Text = "Field: "..selectedField
-        statusText.Text = "Status: Running\nField: "..selectedField
-        fieldSelectionMain.Visible = false
-        -- Immediately pathfind to new field if script is running
-        if scriptRunning then
-            pathfindTo(FIELDS[selectedField], selectedField)
-        end
-    end)
-    
-    fieldButton.TouchTap:Connect(function()
-        selectedField = fieldName
-        fieldSelectionText.Text = "Field: "..selectedField
-        statusText.Text = "Status: Running\nField: "..selectedField
-        fieldSelectionMain.Visible = false
-        -- Immediately pathfind to new field if script is running
-        if scriptRunning then
-            pathfindTo(FIELDS[selectedField], selectedField)
-        end
-    end)
-end
-
--- Close button for field selection
-local fieldSelectionClose = Instance.new("TextButton")
-fieldSelectionClose.Name = "FieldSelectionClose"
-fieldSelectionClose.Size = UDim2.new(0, isMobile and 40 or 30, 0, isMobile and 40 or 30)
-fieldSelectionClose.Position = UDim2.new(1, isMobile and -40 or -30, 0, 0)
-fieldSelectionClose.BackgroundTransparency = 1
-fieldSelectionClose.Text = "X"
-fieldSelectionClose.TextColor3 = Color3.new(1, 1, 1)
-fieldSelectionClose.Font = Enum.Font.GothamBold
-fieldSelectionClose.TextSize = isMobile and 20 or 16
-fieldSelectionClose.Parent = fieldSelectionTitle
-
-fieldSelectionClose.MouseButton1Click:Connect(function()
-    fieldSelectionMain.Visible = false
-end)
-
-fieldSelectionClose.TouchTap:Connect(function()
-    fieldSelectionMain.Visible = false
-end)
 
 -- Reopen button (hidden by default)
 local reopenButton = Instance.new("TextButton")
@@ -302,11 +355,72 @@ local reopenCorner = uICorner:Clone()
 reopenCorner.CornerRadius = UDim.new(0, 6)
 reopenCorner.Parent = reopenButton
 
--- Make sure GUIs are properly parented
+-- Make sure GUI is properly parented
 screenGui.Parent = player:WaitForChild("PlayerGui")
 mainFrame.Parent = screenGui
-fieldSelectionGui.Parent = player:WaitForChild("PlayerGui")
-fieldSelectionMain.Parent = fieldSelectionGui
+
+-- Fixed Vector3 parsing function that properly handles Vector3.new()
+local function parseVector3(str)
+    -- First try to parse as Vector3.new(x,y,z)
+    local x, y, z = str:match("^%s*Vector3%.new%(([%-%d%.]+)%s*,%s*([%-%d%.]+)%s*,%s*([%-%d%.]+)%)%s*$")
+    
+    -- If that fails, try comma-separated values
+    if not x then
+        x, y, z = str:match("^%s*([%-%d%.]+)%s*,%s*([%-%d%.]+)%s*,%s*([%-%d%.]+)%s*$")
+    end
+    
+    -- If that fails, try space-separated values
+    if not x then
+        x, y, z = str:match("^%s*([%-%d%.]+)%s+([%-%d%.]+)%s+([%-%d%.]+)%s*$")
+    end
+    
+    if x and y and z then
+        return Vector3.new(tonumber(x), tonumber(y), tonumber(z))
+    end
+    return nil
+end
+
+-- Set field coordinates with improved feedback
+local function setFieldPosition()
+    local vec = parseVector3(fieldInputBox.Text)
+    if vec then
+        currentFieldPos = vec
+        statusText.Text = "Status: Field set!\n"..tostring(currentFieldPos)
+        if scriptRunning then
+            -- Stop any current movement
+            humanoid:MoveTo(hrp.Position)
+            wait(0.1)
+            -- Start new pathfinding
+            pathfindTo(currentFieldPos, "Field")
+        end
+    else
+        statusText.Text = "Status: Invalid format!\nUse: Vector3.new(x,y,z)\nExample: Vector3.new(-750,73,-92)"
+    end
+end
+
+fieldSetButton.MouseButton1Click:Connect(setFieldPosition)
+fieldSetButton.TouchTap:Connect(setFieldPosition)
+
+-- Set hive coordinates with improved feedback
+local function setHivePosition()
+    local vec = parseVector3(hiveInputBox.Text)
+    if vec then
+        HIVE_POSITION = vec
+        statusText.Text = "Status: Hive set!\n"..tostring(HIVE_POSITION)
+        if scriptRunning and currentLocation == "Hive" then
+            -- Stop any current movement
+            humanoid:MoveTo(hrp.Position)
+            wait(0.1)
+            -- Start new pathfinding
+            pathfindTo(HIVE_POSITION, "Hive")
+        end
+    else
+        statusText.Text = "Status: Invalid format!\nUse: Vector3.new(x,y,z)\nExample: Vector3.new(-723,74,27)"
+    end
+end
+
+hiveSetButton.MouseButton1Click:Connect(setHivePosition)
+hiveSetButton.TouchTap:Connect(setHivePosition)
 
 -- Mobile-friendly touch controls
 local function isTouchInput(input)
@@ -356,9 +470,6 @@ local function toggleGUI(visible)
     mainFrame.Visible = guiVisible
     reopenButton.Visible = not guiVisible
     closeButton.Text = guiVisible and "─" or "+"
-    if fieldSelectionMain.Visible then
-        fieldSelectionMain.Visible = false
-    end
 end
 
 closeButton.MouseButton1Click:Connect(function()
@@ -383,20 +494,18 @@ end)
 local function toggleScript()
     scriptRunning = not scriptRunning
     toggleButton.Text = scriptRunning and "STOP" or "START"
-    statusText.Text = scriptRunning and "Status: Running\nField: "..selectedField or "Status: Paused\nField: "..selectedField
+    statusText.Text = scriptRunning and "Status: Running\nField: Custom" or "Status: Paused\nField: Custom"
     toggleButton.BackgroundColor3 = scriptRunning and ACCENT_COLOR or STOP_COLOR
+    
+    if scriptRunning then
+        pathfindTo(currentFieldPos, "Field")
+    else
+        humanoid:MoveTo(hrp.Position) -- Stop current movement
+    end
 end
 
 toggleButton.MouseButton1Click:Connect(toggleScript)
 toggleButton.TouchTap:Connect(toggleScript)
-
--- Toggle field selection GUI
-local function toggleFieldSelection()
-    fieldSelectionMain.Visible = not fieldSelectionMain.Visible
-end
-
-fieldSelectionButton.MouseButton1Click:Connect(toggleFieldSelection)
-fieldSelectionButton.TouchTap:Connect(toggleFieldSelection)
 
 -- Pollen detection
 local function getCurrentPollen()
@@ -463,15 +572,22 @@ local function checkIfStationary()
     return stationaryTime >= 1 -- Considered stationary after 1 second
 end
 
--- Pathfinding function
+-- Improved pathfinding function with better state management
 local function pathfindTo(targetPos, locationName)
-    if isPathfinding or not character:FindFirstChild("HumanoidRootPart") then return false end
+    if isPathfinding or not character:FindFirstChild("HumanoidRootPart") or not scriptRunning then 
+        return false 
+    end
+    
     isPathfinding = true
     currentLocation = "Moving"
-    if statusText then statusText.Text = "Moving to "..locationName end
+    if statusText then 
+        statusText.Text = "Moving to "..locationName 
+    end
     
     local success = false
     for attempt = 1, 3 do
+        if not scriptRunning then break end -- Exit if script was stopped
+        
         local path = PathfindingService:CreatePath({
             AgentRadius = 2.5,
             AgentHeight = 5,
@@ -486,16 +602,37 @@ local function pathfindTo(targetPos, locationName)
         if computeSuccess and path.Status == Enum.PathStatus.Success then
             local waypoints = path:GetWaypoints()
             for _, waypoint in ipairs(waypoints) do
+                if not scriptRunning then break end -- Exit if script was stopped
+                
                 if waypoint.Action == Enum.PathWaypointAction.Jump then
                     humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
                 end
+                
                 humanoid:MoveTo(waypoint.Position)
-                humanoid.MoveToFinished:Wait()
-                collectTokens() -- Collect tokens during movement
+                local moveFinished = false
+                local connection
+                connection = humanoid.MoveToFinished:Connect(function(reached)
+                    moveFinished = true
+                    connection:Disconnect()
+                end)
+                
+                -- Add a timeout for movement
+                local startTime = os.clock()
+                while not moveFinished and os.clock() - startTime < 5 do
+                    collectTokens() -- Collect tokens during movement
+                    wait(0.1)
+                end
+                
+                if not moveFinished then
+                    humanoid:MoveTo(waypoint.Position) -- Try again
+                end
             end
-            currentLocation = locationName
-            success = true
-            break
+            
+            if scriptRunning then
+                currentLocation = locationName
+                success = true
+                break
+            end
         end
         wait(1)
     end
@@ -530,6 +667,10 @@ player.CharacterAdded:Connect(function(newChar)
     character = newChar
     humanoid = character:WaitForChild("Humanoid")
     hrp = character:WaitForChild("HumanoidRootPart")
+    
+    -- Reset pathfinding state when character respawns
+    isPathfinding = false
+    isConverting = false
 end)
 
 -- Main loop
@@ -543,12 +684,8 @@ while true do
 
     if scriptRunning then
         local currentPollen = getCurrentPollen()
-        local currentFieldPos = FIELDS[selectedField]
         local atField = character:FindFirstChild("HumanoidRootPart") and 
                        (character.HumanoidRootPart.Position - currentFieldPos).Magnitude < FIELD_RADIUS
-        local isStationary = checkIfStationary()
-
-        -- Update status text
-        if atField then
-            if currentPollen > lastPollenValue then
-                statusText.Text = string.format("Status: Collecting\nPollen: 
+        local atHive = character:FindFirstChild("HumanoidRootPart") and 
+                      (character.HumanoidRootPart.Position - HIVE_POSITION).Magnitude < FIELD_RADIUS
+        local isStationary = checkIfStatio
