@@ -1,118 +1,3 @@
--- LocalScript (place in StarterPlayerScripts or StarterCharacterScripts)
-local player = game:GetService("Players").LocalPlayer
-local guiService = game:GetService("GuiService")
-local textService = game:GetService("TextService")
-local runService = game:GetService("RunService")
-
--- Create screen GUI
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "CoordinateCopier"
-screenGui.Parent = player:WaitForChild("PlayerGui")
-
--- Create the button
-local button = Instance.new("TextButton")
-button.Name = "CopyButton"
-button.Size = UDim2.new(0, 200, 0, 50)
-button.Position = UDim2.new(0.5, -100, 1, -60) -- Bottom center
-button.AnchorPoint = Vector2.new(0.5, 0)
-button.BackgroundColor3 = Color3.fromRGB(30, 136, 229)
-button.TextColor3 = Color3.fromRGB(255, 255, 255)
-button.Text = "Copy Position"
-button.Font = Enum.Font.SourceSansBold
-button.TextSize = 18
-button.Parent = screenGui
-
--- Add rounded corners
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 8)
-corner.Parent = button
-
--- Add padding
-local padding = Instance.new("UIPadding")
-padding.PaddingTop = UDim.new(0, 5)
-padding.PaddingBottom = UDim.new(0, 5)
-padding.PaddingLeft = UDim.new(0, 10)
-padding.PaddingRight = UDim.new(0, 10)
-padding.Parent = button
-
--- Function to get current position
-local function getCurrentPosition()
-    local character = player.Character or player.CharacterAdded:Wait()
-    local rootPart = character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
-    
-    if rootPart then
-        local position = rootPart.Position
-        return string.format("Vector3.new(%.2f, %.2f, %.2f)", position.X, position.Y, position.Z)
-    end
-    return nil
-end
-
--- Function to copy to clipboard
-local function copyToClipboard(text)
-    if setclipboard then
-        setclipboard(text)
-        return true
-    elseif toclipboard then
-        toclipboard(text)
-        return true
-    elseif Clipboard and Clipboard.set then
-        Clipboard.set(text)
-        return true
-    end
-    return false
-end
-
--- Button click handler
-button.MouseButton1Click:Connect(function()
-    local positionText = getCurrentPosition()
-    if positionText then
-        if copyToClipboard(positionText) then
-            -- Show confirmation
-            button.Text = "Copied!"
-            task.wait(1)
-            button.Text = "Copy Position"
-            
-            -- For mobile devices that support notifications
-            if guiService:IsTenFootInterface() or game:GetService("UserInputService"):GetPlatform() == Enum.Platform.IOS or game:GetService("UserInputService"):GetPlatform() == Enum.Platform.Android then
-                local notification = Instance.new("TextLabel")
-                notification.Name = "Notification"
-                notification.Text = "Coordinates copied!"
-                notification.Size = UDim2.new(0, 200, 0, 40)
-                notification.Position = UDim2.new(0.5, -100, 0.5, -20)
-                notification.AnchorPoint = Vector2.new(0.5, 0.5)
-                notification.BackgroundColor3 = Color3.fromRGB(46, 125, 50)
-                notification.TextColor3 = Color3.fromRGB(255, 255, 255)
-                notification.Font = Enum.Font.SourceSansBold
-                notification.TextSize = 18
-                notification.ZIndex = 10
-                
-                local notifCorner = Instance.new("UICorner")
-                notifCorner.CornerRadius = UDim.new(0, 8)
-                notifCorner.Parent = notification
-                
-                notification.Parent = screenGui
-                
-                task.delay(2, function()
-                    notification:Destroy()
-                end)
-            end
-        else
-            button.Text = "Copy Failed"
-            task.wait(1)
-            button.Text = "Copy Position"
-        end
-    else
-        button.Text = "No Position"
-        task.wait(1)
-        button.Text = "Copy Position"
-    end
-end)
-
--- Make the button respond to touch for mobile devices
-if runService:IsStudio() or game:GetService("UserInputService").TouchEnabled then
-    button.Active = true
-    button.SelectionImageObject = Instance.new("ImageLabel")
-end
 local Players = game:GetService("Players")
 local PathfindingService = game:GetService("PathfindingService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -688,4 +573,33 @@ while true do
                        (character.HumanoidRootPart.Position - currentFieldPos).Magnitude < FIELD_RADIUS
         local atHive = character:FindFirstChild("HumanoidRootPart") and 
                       (character.HumanoidRootPart.Position - HIVE_POSITION).Magnitude < FIELD_RADIUS
-        local isStationary = checkIfStatio
+        local isStationary = checkIfStationary()
+
+                -- Update status text
+        if atField then
+            if currentPollen > lastPollenValue then
+                statusText.Text = string.format("Status: Collecting\nPollen: %d", currentPollen)
+                lastIncreaseTime = os.time()
+            elseif os.time() - lastIncreaseTime > INACTIVITY_THRESHOLD and isStationary then
+                -- Go to hive if no pollen increase for threshold time
+                pathfindTo(HIVE_POSITION, "Hive")
+            end
+            lastPollenValue = currentPollen
+        elseif atHive then
+            -- At hive
+            if currentPollen > 0 then
+                convertPollen()
+            else
+                -- Return to field if no pollen
+                pathfindTo(currentFieldPos, "Field")
+            end
+        elseif not isPathfinding and not isConverting then
+            -- Not at field or hive and not already moving - go to field
+            pathfindTo(currentFieldPos, "Field")
+        end
+
+        -- Collect tokens if near them
+        collectTokens()
+    end
+    wait(POLLEN_CHECK_INTERVAL)
+end
