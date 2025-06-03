@@ -1,27 +1,3 @@
-local args = {
-    workspace:WaitForChild("Hives"):WaitForChild("Hive_1")
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimHive"):FireServer(unpack(args))
-local args = {
-    workspace:WaitForChild("Hives"):WaitForChild("Hive_5")
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimHive"):FireServer(unpack(args))
-local args = {
-    workspace:WaitForChild("Hives"):WaitForChild("Hive_4")
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimHive"):FireServer(unpack(args))
-local args = {
-    workspace:WaitForChild("Hives"):WaitForChild("Hive_3")
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimHive"):FireServer(unpack(args))
-local args = {
-    workspace:WaitForChild("Hives"):WaitForChild("Hive_2")
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimHive"):FireServer(unpack(args))
-local args = {
-    workspace:WaitForChild("Hives"):WaitForChild("Hive_6")
-}
-game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("ClaimHive"):FireServer(unpack(args))
 local player = game.Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 
