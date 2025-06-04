@@ -1,4 +1,4 @@
--- Create the main frame
+-- Create the main frame niggaaa
 local player = game:GetService("Players").LocalPlayer
 local gui = Instance.new("ScreenGui")
 gui.Name = "CoordinateCopier"
