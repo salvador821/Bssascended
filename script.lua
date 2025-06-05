@@ -147,14 +147,14 @@ local currentFieldPos = Vector3.new(-750.04, 73.12, -92.81) -- Default field pos
 local HIVE_POSITION = Vector3.new(-723.39, 74.99, 27.44) -- Default hive position
 local DEFAULT_TWEEN_SPEED = 20 -- Default speed (higher is slower)
 
-local INACTIVITY_THRESHOLD = 7
+local INACTIVITY_THRESHOLD = 4
 local POLLEN_CHECK_INTERVAL = 0.3
 local FIELD_RADIUS = 50
 local TOKEN_CHECK_INTERVAL = 0.5
-local MAX_TOKEN_DISTANCE = 100
+local MAX_TOKEN_DISTANCE = 70
 
 -- Fire Configuration
-local FIRE_DETECTION_RANGE = 150
+local FIRE_DETECTION_RANGE = 70
 local MIN_FIRE_DISTANCE = 5
 local FIRE_SCAN_INTERVAL = 0.3
 local FIRE_NAME = "Fire"
@@ -744,7 +744,7 @@ local function checkAndCollectFire()
             humanoid.MoveToFinished:Wait()
             
             -- Wait a moment at the fire
-            wait(1)
+            wait(2)
             
             -- Clear current target
             currentTargetFire = nil
