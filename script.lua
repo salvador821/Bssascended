@@ -1,4 +1,4 @@
--- Create the main frame niggaaa
+-- Create the main frame
 local player = game:GetService("Players").LocalPlayer
 local gui = Instance.new("ScreenGui")
 gui.Name = "CoordinateCopier"
@@ -134,6 +134,7 @@ end)
 
 -- Parent the GUI to the player
 gui.Parent = player:WaitForChild("PlayerGui")
+
 local Players = game:GetService("Players")
 local PathfindingService = game:GetService("PathfindingService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -144,6 +145,7 @@ local RunService = game:GetService("RunService")
 -- Field Configuration (now customizable)
 local currentFieldPos = Vector3.new(-750.04, 73.12, -92.81) -- Default field position
 local HIVE_POSITION = Vector3.new(-723.39, 74.99, 27.44) -- Default hive position
+local DEFAULT_TWEEN_SPEED = 20 -- Default speed (higher is slower)
 
 local INACTIVITY_THRESHOLD = 7
 local POLLEN_CHECK_INTERVAL = 0.3
@@ -151,10 +153,20 @@ local FIELD_RADIUS = 50
 local TOKEN_CHECK_INTERVAL = 0.5
 local MAX_TOKEN_DISTANCE = 100
 
+-- Fire Configuration
+local FIRE_DETECTION_RANGE = 150
+local MIN_FIRE_DISTANCE = 5
+local FIRE_SCAN_INTERVAL = 0.3
+local FIRE_NAME = "Fire"
+local IGNORE_NAME = "Bee"
+local FIRE_COOLDOWN = 5 -- Seconds before revisiting same fire
+
 -- GUI Configuration
 local GUI_COLOR = Color3.fromRGB(40, 40, 40)
 local ACCENT_COLOR = Color3.fromRGB(0, 170, 255)
 local STOP_COLOR = Color3.fromRGB(255, 60, 60)
+local FIRE_COLOR = Color3.fromRGB(255, 100, 0) -- Orange color for fire button
+local FIRE_ENABLED_COLOR = Color3.fromRGB(0, 200, 0) -- Green when enabled
 
 -- State tracking
 local lastPollenValue = 0
@@ -167,6 +179,14 @@ local stationaryTime = 0
 local lastTokenCheck = 0
 local scriptRunning = true
 local guiVisible = true
+local currentTween = nil
+local isTraveling = false
+local currentTweenSpeed = DEFAULT_TWEEN_SPEED
+local fireFarmingEnabled = true -- Default enabled
+local lastFirePosition = nil
+local lastFireScanTime = 0
+local collectedFires = {} -- Track recently collected fires
+local currentTargetFire = nil
 
 -- Get references
 local player = Players.LocalPlayer
@@ -183,8 +203,8 @@ screenGui.DisplayOrder = 10
 
 -- Mobile-friendly GUI sizing
 local isMobile = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
-local guiWidth = isMobile and 320 or 280
-local guiHeight = isMobile and 240 or 210 -- Increased height for new input boxes
+local guiWidth = isMobile and 350 or 300
+local guiHeight = isMobile and 340 or 300 -- Increased height for fire button
 
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
@@ -225,7 +245,7 @@ titleText.Font = Enum.Font.GothamSemibold
 titleText.TextSize = isMobile and 16 or 14
 titleText.Parent = titleBar
 
--- Close button (mobile-friendly size)
+-- Close button
 local closeButton = Instance.new("TextButton")
 closeButton.Name = "CloseButton"
 closeButton.Size = UDim2.new(0, isMobile and 40 or 30, 1, 0)
@@ -237,13 +257,13 @@ closeButton.Font = Enum.Font.GothamBold
 closeButton.TextSize = isMobile and 20 or 16
 closeButton.Parent = titleBar
 
--- Status text (mobile-friendly size)
+-- Status text
 local statusText = Instance.new("TextLabel")
 statusText.Name = "StatusText"
 statusText.Size = UDim2.new(1, -20, 0, isMobile and 60 or 40)
 statusText.Position = UDim2.new(0, 10, 0, isMobile and 50 or 40)
 statusText.BackgroundTransparency = 1
-statusText.Text = "Status: Running\nField: Custom"
+statusText.Text = "Status: Running\nField: Custom\nSpeed: "..currentTweenSpeed
 statusText.TextColor3 = Color3.new(1, 1, 1)
 statusText.TextXAlignment = Enum.TextXAlignment.Left
 statusText.Font = Enum.Font.Gotham
@@ -343,11 +363,84 @@ local hiveSetCorner = uICorner:Clone()
 hiveSetCorner.CornerRadius = UDim.new(0, 4)
 hiveSetCorner.Parent = hiveSetButton
 
--- Control buttons (mobile-friendly size)
+-- Tween Speed Control
+local speedFrame = Instance.new("Frame")
+speedFrame.Name = "SpeedFrame"
+speedFrame.Size = UDim2.new(0.9, 0, 0, isMobile and 40 or 30)
+speedFrame.Position = UDim2.new(0.05, 0, 0, isMobile and 220 or 170)
+speedFrame.BackgroundColor3 = GUI_COLOR
+speedFrame.BackgroundTransparency = 0.4
+speedFrame.BorderSizePixel = 0
+speedFrame.Parent = mainFrame
+
+local speedCorner = uICorner:Clone()
+speedCorner.CornerRadius = UDim.new(0, 6)
+speedCorner.Parent = speedFrame
+
+local speedLabel = Instance.new("TextLabel")
+speedLabel.Name = "SpeedLabel"
+speedLabel.Size = UDim2.new(0.4, 0, 0.8, 0)
+speedLabel.Position = UDim2.new(0.05, 0, 0.1, 0)
+speedLabel.BackgroundTransparency = 1
+speedLabel.Text = "Tween Speed:"
+speedLabel.TextColor3 = Color3.new(1, 1, 1)
+speedLabel.Font = Enum.Font.Gotham
+speedLabel.TextSize = isMobile and 12 or 10
+speedLabel.TextXAlignment = Enum.TextXAlignment.Left
+speedLabel.Parent = speedFrame
+
+local speedBox = Instance.new("TextBox")
+speedBox.Name = "SpeedBox"
+speedBox.Size = UDim2.new(0.3, 0, 0.8, 0)
+speedBox.Position = UDim2.new(0.45, 0, 0.1, 0)
+speedBox.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+speedBox.BackgroundTransparency = 0.5
+speedBox.Text = tostring(currentTweenSpeed)
+speedBox.TextColor3 = Color3.new(1, 1, 1)
+speedBox.Font = Enum.Font.Gotham
+speedBox.TextSize = isMobile and 12 or 10
+speedBox.Parent = speedFrame
+
+local speedBoxCorner = uICorner:Clone()
+speedBoxCorner.CornerRadius = UDim.new(0, 4)
+speedBoxCorner.Parent = speedBox
+
+local speedSetButton = Instance.new("TextButton")
+speedSetButton.Name = "SpeedSetButton"
+speedSetButton.Size = UDim2.new(0.2, 0, 0.8, 0)
+speedSetButton.Position = UDim2.new(0.8, 0, 0.1, 0)
+speedSetButton.BackgroundColor3 = ACCENT_COLOR
+speedSetButton.Text = "Set"
+speedSetButton.TextColor3 = Color3.new(1, 1, 1)
+speedSetButton.Font = Enum.Font.GothamBold
+speedSetButton.TextSize = isMobile and 12 or 10
+speedSetButton.Parent = speedFrame
+
+local speedSetCorner = uICorner:Clone()
+speedSetCorner.CornerRadius = UDim.new(0, 4)
+speedSetCorner.Parent = speedSetButton
+
+-- Fire Farming Toggle
+local fireButton = Instance.new("TextButton")
+fireButton.Name = "FireButton"
+fireButton.Size = UDim2.new(0.4, 0, 0, isMobile and 40 or 30)
+fireButton.Position = UDim2.new(0.05, 0, 0, isMobile and 270 or 210)
+fireButton.BackgroundColor3 = FIRE_ENABLED_COLOR
+fireButton.Text = "FIRE: ON"
+fireButton.TextColor3 = Color3.new(1, 1, 1)
+fireButton.Font = Enum.Font.GothamBold
+fireButton.TextSize = isMobile and 14 or 12
+fireButton.Parent = mainFrame
+
+local fireCorner = uICorner:Clone()
+fireCorner.CornerRadius = UDim.new(0, 6)
+fireCorner.Parent = fireButton
+
+-- Control buttons
 local toggleButton = Instance.new("TextButton")
 toggleButton.Name = "ToggleButton"
 toggleButton.Size = UDim2.new(0.4, 0, 0, isMobile and 40 or 30)
-toggleButton.Position = UDim2.new(0.55, 0, 0, isMobile and 220 or 170) -- Adjusted position
+toggleButton.Position = UDim2.new(0.55, 0, 0, isMobile and 270 or 210)
 toggleButton.BackgroundColor3 = ACCENT_COLOR
 toggleButton.Text = "STOP"
 toggleButton.TextColor3 = Color3.new(1, 1, 1)
@@ -359,7 +452,7 @@ local toggleCorner = uICorner:Clone()
 toggleCorner.CornerRadius = UDim.new(0, 6)
 toggleCorner.Parent = toggleButton
 
--- Reopen button (hidden by default)
+-- Reopen button
 local reopenButton = Instance.new("TextButton")
 reopenButton.Name = "ReopenButton"
 reopenButton.Size = UDim2.new(0, isMobile and 80 or 60, 0, isMobile and 40 or 30)
@@ -376,43 +469,39 @@ local reopenCorner = uICorner:Clone()
 reopenCorner.CornerRadius = UDim.new(0, 6)
 reopenCorner.Parent = reopenButton
 
--- Make sure GUI is properly parented
+-- Parent GUI
 screenGui.Parent = player:WaitForChild("PlayerGui")
 mainFrame.Parent = screenGui
 
--- Fixed Vector3 parsing function that properly handles Vector3.new()
+-- Vector3 parsing function
 local function parseVector3(str)
-    -- First try to parse as Vector3.new(x,y,z)
     local x, y, z = str:match("^%s*Vector3%.new%(([%-%d%.]+)%s*,%s*([%-%d%.]+)%s*,%s*([%-%d%.]+)%)%s*$")
-    
-    -- If that fails, try comma-separated values
     if not x then
         x, y, z = str:match("^%s*([%-%d%.]+)%s*,%s*([%-%d%.]+)%s*,%s*([%-%d%.]+)%s*$")
     end
-    
-    -- If that fails, try space-separated values
     if not x then
         x, y, z = str:match("^%s*([%-%d%.]+)%s+([%-%d%.]+)%s+([%-%d%.]+)%s*$")
     end
-    
     if x and y and z then
         return Vector3.new(tonumber(x), tonumber(y), tonumber(z))
     end
     return nil
 end
 
--- Set field coordinates with improved feedback
+-- Set field position
 local function setFieldPosition()
     local vec = parseVector3(fieldInputBox.Text)
     if vec then
         currentFieldPos = vec
-        statusText.Text = "Status: Field set!\n"..tostring(currentFieldPos)
+        statusText.Text = "Status: Field set!\n"..tostring(currentFieldPos).."\nSpeed: "..currentTweenSpeed
         if scriptRunning then
-            -- Stop any current movement
+            if currentTween then
+                currentTween:Cancel()
+                currentTween = nil
+            end
             humanoid:MoveTo(hrp.Position)
             wait(0.1)
-            -- Start new pathfinding
-            pathfindTo(currentFieldPos, "Field")
+            tweenTo(currentFieldPos, "Field")
         end
     else
         statusText.Text = "Status: Invalid format!\nUse: Vector3.new(x,y,z)\nExample: Vector3.new(-750,73,-92)"
@@ -422,18 +511,20 @@ end
 fieldSetButton.MouseButton1Click:Connect(setFieldPosition)
 fieldSetButton.TouchTap:Connect(setFieldPosition)
 
--- Set hive coordinates with improved feedback
+-- Set hive position
 local function setHivePosition()
     local vec = parseVector3(hiveInputBox.Text)
     if vec then
         HIVE_POSITION = vec
-        statusText.Text = "Status: Hive set!\n"..tostring(HIVE_POSITION)
+        statusText.Text = "Status: Hive set!\n"..tostring(HIVE_POSITION).."\nSpeed: "..currentTweenSpeed
         if scriptRunning and currentLocation == "Hive" then
-            -- Stop any current movement
+            if currentTween then
+                currentTween:Cancel()
+                currentTween = nil
+            end
             humanoid:MoveTo(hrp.Position)
             wait(0.1)
-            -- Start new pathfinding
-            pathfindTo(HIVE_POSITION, "Hive")
+            tweenTo(HIVE_POSITION, "Hive")
         end
     else
         statusText.Text = "Status: Invalid format!\nUse: Vector3.new(x,y,z)\nExample: Vector3.new(-723,74,27)"
@@ -443,16 +534,39 @@ end
 hiveSetButton.MouseButton1Click:Connect(setHivePosition)
 hiveSetButton.TouchTap:Connect(setHivePosition)
 
--- Mobile-friendly touch controls
-local function isTouchInput(input)
-    return input.UserInputType == Enum.UserInputType.Touch
+-- Set tween speed
+local function setTweenSpeed()
+    local speed = tonumber(speedBox.Text)
+    if speed and speed > 0 then
+        currentTweenSpeed = speed
+        statusText.Text = string.format("Status: Speed set to %d\nHigher = Slower", currentTweenSpeed)
+    else
+        statusText.Text = "Status: Invalid speed!\nMust be number > 0"
+    end
 end
 
--- Make GUI draggable (mobile-friendly version)
-local dragging
-local dragInput
-local dragStart
-local startPos
+speedSetButton.MouseButton1Click:Connect(setTweenSpeed)
+speedSetButton.TouchTap:Connect(setTweenSpeed)
+
+-- Toggle Fire Farming
+local function toggleFireFarming()
+    fireFarmingEnabled = not fireFarmingEnabled
+    fireButton.Text = "FIRE: "..(fireFarmingEnabled and "ON" or "OFF")
+    fireButton.BackgroundColor3 = fireFarmingEnabled and FIRE_ENABLED_COLOR or FIRE_COLOR
+    
+    if not fireFarmingEnabled and currentTargetFire then
+        currentTargetFire = nil
+        humanoid:MoveTo(hrp.Position)
+    end
+    
+    statusText.Text = "Fire Farming: "..(fireFarmingEnabled and "ON" or "OFF").."\nSpeed: "..currentTweenSpeed
+end
+
+fireButton.MouseButton1Click:Connect(toggleFireFarming)
+fireButton.TouchTap:Connect(toggleFireFarming)
+
+-- GUI dragging
+local dragging, dragInput, dragStart, startPos
 
 local function updateInput(input)
     local delta = input.Position - dragStart
@@ -460,7 +574,7 @@ local function updateInput(input)
 end
 
 titleBar.InputBegan:Connect(function(input)
-    if isTouchInput(input) or input.UserInputType == Enum.UserInputType.MouseButton1 then
+    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
         dragging = true
         dragStart = input.Position
         startPos = mainFrame.Position
@@ -474,7 +588,7 @@ titleBar.InputBegan:Connect(function(input)
 end)
 
 titleBar.InputChanged:Connect(function(input)
-    if isTouchInput(input) or input.UserInputType == Enum.UserInputType.MouseMovement then
+    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseMovement then
         dragInput = input
     end
 end)
@@ -493,35 +607,26 @@ local function toggleGUI(visible)
     closeButton.Text = guiVisible and "─" or "+"
 end
 
-closeButton.MouseButton1Click:Connect(function()
-    toggleGUI(not guiVisible)
-end)
-
--- Also handle touch for mobile
-closeButton.TouchTap:Connect(function()
-    toggleGUI(not guiVisible)
-end)
-
--- Reopen button functionality
-reopenButton.MouseButton1Click:Connect(function()
-    toggleGUI(true)
-end)
-
-reopenButton.TouchTap:Connect(function()
-    toggleGUI(true)
-end)
+closeButton.MouseButton1Click:Connect(function() toggleGUI(not guiVisible) end)
+closeButton.TouchTap:Connect(function() toggleGUI(not guiVisible) end)
+reopenButton.MouseButton1Click:Connect(function() toggleGUI(true) end)
+reopenButton.TouchTap:Connect(function() toggleGUI(true) end)
 
 -- Toggle script running
 local function toggleScript()
     scriptRunning = not scriptRunning
     toggleButton.Text = scriptRunning and "STOP" or "START"
-    statusText.Text = scriptRunning and "Status: Running\nField: Custom" or "Status: Paused\nField: Custom"
+    statusText.Text = scriptRunning and ("Status: Running\nField: Custom\nSpeed: "..currentTweenSpeed) or "Status: Paused\nField: Custom"
     toggleButton.BackgroundColor3 = scriptRunning and ACCENT_COLOR or STOP_COLOR
     
     if scriptRunning then
-        pathfindTo(currentFieldPos, "Field")
+        tweenTo(currentFieldPos, "Field")
     else
-        humanoid:MoveTo(hrp.Position) -- Stop current movement
+        if currentTween then
+            currentTween:Cancel()
+            currentTween = nil
+        end
+        humanoid:MoveTo(hrp.Position)
     end
 end
 
@@ -544,7 +649,7 @@ local function getCurrentPollen()
     return 0
 end
 
--- Token collection system with range limit
+-- Token collection
 local function getNearestToken()
     local closestToken = nil
     local shortestDistance = math.huge
@@ -566,7 +671,9 @@ local function getNearestToken()
 end
 
 local function collectTokens()
-    if os.clock() - lastTokenCheck < TOKEN_CHECK_INTERVAL then return end
+    if os.clock() - lastTokenCheck < TOKEN_CHECK_INTERVAL or isTraveling or currentTargetFire then 
+        return 
+    end
     lastTokenCheck = os.clock()
     
     local token, dist = getNearestToken()
@@ -576,97 +683,140 @@ local function collectTokens()
     end
 end
 
--- Movement detection (modified to not reset when token collecting)
+-- Fire scanning function (modified to avoid recently collected fires)
+local function scanForFires()
+    if not fireFarmingEnabled then return nil, math.huge end
+    
+    local closestFire = nil
+    local closestDistance = math.huge
+    local hrpPos = hrp.Position
+    
+    -- Clean up old collected fires
+    local currentTime = os.time()
+    for firePos, expireTime in pairs(collectedFires) do
+        if currentTime > expireTime then
+            collectedFires[firePos] = nil
+        end
+    end
+    
+    local containers = {
+        workspace:FindFirstChild("Fires"),
+        workspace:FindFirstChild("Effects"),
+        workspace:FindFirstChild("Debris")
+    }
+    
+    for _, container in pairs(containers) do
+        if container then
+            for _, part in pairs(container:GetDescendants()) do
+                if part:IsA("BasePart") and part.Name == FIRE_NAME and not string.find(part.Name, IGNORE_NAME) then
+                    -- Skip if this fire was recently collected
+                    if not collectedFires[tostring(part.Position)] then
+                        local distance = (part.Position - hrpPos).Magnitude
+                        if distance < closestDistance and distance <= FIRE_DETECTION_RANGE then
+                            closestDistance = distance
+                            closestFire = part
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    return closestFire, closestDistance
+end
+
+-- Modified moveToFire function that integrates with main farming
+local function checkAndCollectFire()
+    if not scriptRunning or not fireFarmingEnabled then return false end
+    
+    local now = os.clock()
+    if now - lastFireScanTime > FIRE_SCAN_INTERVAL then
+        lastFireScanTime = now
+        
+        local fire, distance = scanForFires()
+        if fire then
+            -- Mark this fire position as collected
+            collectedFires[tostring(fire.Position)] = os.time() + FIRE_COOLDOWN
+            currentTargetFire = fire.Position
+            
+            -- Move to fire
+            humanoid:MoveTo(fire.Position)
+            humanoid.MoveToFinished:Wait()
+            
+            -- Wait a moment at the fire
+            wait(1)
+            
+            -- Clear current target
+            currentTargetFire = nil
+            return true
+        end
+    end
+    return false
+end
+
+-- Movement detection
 local function checkIfStationary()
-    if not character:FindFirstChild("HumanoidRootPart") then return false end
+    if not character:FindFirstChild("HumanoidRootPart") or isTraveling or currentTargetFire then 
+        return false 
+    end
     
     local currentPos = character.HumanoidRootPart.Position
     if (currentPos - lastPosition).Magnitude < 2 then
         stationaryTime = stationaryTime + POLLEN_CHECK_INTERVAL
     else
-        -- Only reset stationary time if not token collecting
         if os.clock() - lastTokenCheck > 1 then
             stationaryTime = 0
         end
     end
     lastPosition = currentPos
-    return stationaryTime >= 1 -- Considered stationary after 1 second
+    return stationaryTime >= 1
 end
 
--- Improved pathfinding function with better state management
-local function pathfindTo(targetPos, locationName)
-    if isPathfinding or not character:FindFirstChild("HumanoidRootPart") or not scriptRunning then 
+-- Tween movement function
+local function tweenTo(targetPos, locationName)
+    if not character or not character:FindFirstChild("HumanoidRootPart") or not scriptRunning then 
         return false 
     end
     
-    isPathfinding = true
+    if currentTween then
+        currentTween:Cancel()
+        currentTween = nil
+    end
+    
+    isTraveling = true
     currentLocation = "Moving"
-    if statusText then 
-        statusText.Text = "Moving to "..locationName 
-    end
+    statusText.Text = "Moving to "..locationName.."\nSpeed: "..currentTweenSpeed
     
-    local success = false
-    for attempt = 1, 3 do
-        if not scriptRunning then break end -- Exit if script was stopped
-        
-        local path = PathfindingService:CreatePath({
-            AgentRadius = 2.5,
-            AgentHeight = 5,
-            AgentCanJump = true,
-            WaypointSpacing = 4
-        })
-        
-        local computeSuccess, err = pcall(function()
-            path:ComputeAsync(character.HumanoidRootPart.Position, targetPos)
-        end)
-        
-        if computeSuccess and path.Status == Enum.PathStatus.Success then
-            local waypoints = path:GetWaypoints()
-            for _, waypoint in ipairs(waypoints) do
-                if not scriptRunning then break end -- Exit if script was stopped
-                
-                if waypoint.Action == Enum.PathWaypointAction.Jump then
-                    humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-                end
-                
-                humanoid:MoveTo(waypoint.Position)
-                local moveFinished = false
-                local connection
-                connection = humanoid.MoveToFinished:Connect(function(reached)
-                    moveFinished = true
-                    connection:Disconnect()
-                end)
-                
-                -- Add a timeout for movement
-                local startTime = os.clock()
-                while not moveFinished and os.clock() - startTime < 5 do
-                    collectTokens() -- Collect tokens during movement
-                    wait(0.1)
-                end
-                
-                if not moveFinished then
-                    humanoid:MoveTo(waypoint.Position) -- Try again
-                end
-            end
-            
-            if scriptRunning then
-                currentLocation = locationName
-                success = true
-                break
-            end
-        end
-        wait(1)
-    end
+    local distance = (targetPos - hrp.Position).Magnitude
+    local duration = distance / currentTweenSpeed
     
-    isPathfinding = false
-    return success
+    local tweenInfo = TweenInfo.new(
+        duration,
+        Enum.EasingStyle.Linear,
+        Enum.EasingDirection.InOut,
+        0,
+        false,
+        0
+    )
+    
+    currentTween = TweenService:Create(hrp, tweenInfo, {CFrame = CFrame.new(targetPos)})
+    currentTween:Play()
+    
+    currentTween.Completed:Connect(function()
+        currentLocation = locationName
+        currentTween = nil
+        isTraveling = false
+        statusText.Text = "Status: Running\nField: Custom\nSpeed: "..currentTweenSpeed
+    end)
+    
+    return true
 end
 
 -- Honey conversion
 local function convertPollen()
     if isConverting then return false end
     isConverting = true
-    if statusText then statusText.Text = "Converting..." end
+    statusText.Text = "Converting..."
     
     local args = {true}
     local success = pcall(function()
@@ -675,10 +825,10 @@ local function convertPollen()
     
     isConverting = false
     if success and getCurrentPollen() <= 0 then
-        if statusText then statusText.Text = "Converted!" end
+        statusText.Text = "Converted!\nSpeed: "..currentTweenSpeed
         return true
     else
-        if statusText then statusText.Text = "Conversion failed" end
+        statusText.Text = "Conversion failed\nSpeed: "..currentTweenSpeed
         return false
     end
 end
@@ -689,14 +839,18 @@ player.CharacterAdded:Connect(function(newChar)
     humanoid = character:WaitForChild("Humanoid")
     hrp = character:WaitForChild("HumanoidRootPart")
     
-    -- Reset pathfinding state when character respawns
-    isPathfinding = false
+    if currentTween then
+        currentTween:Cancel()
+        currentTween = nil
+    end
+    isTraveling = false
     isConverting = false
+    currentTargetFire = nil
+    collectedFires = {}
 end)
 
 -- Main loop
 while true do
-    -- Refresh references
     if not character or not character.Parent then
         character = player.Character or player.CharacterAdded:Wait()
         humanoid = character:WaitForChild("Humanoid")
@@ -704,120 +858,41 @@ while true do
     end
 
     if scriptRunning then
-        local currentPollen = getCurrentPollen()
-        local atField = character:FindFirstChild("HumanoidRootPart") and 
-                       (character.HumanoidRootPart.Position - currentFieldPos).Magnitude < FIELD_RADIUS
-        local atHive = character:FindFirstChild("HumanoidRootPart") and 
-                      (character.HumanoidRootPart.Position - HIVE_POSITION).Magnitude < FIELD_RADIUS
-        local isStationary = checkIfStationary()
+        -- First check for fires (highest priority)
+        local foundFire = checkAndCollectFire()
+        
+        -- Only proceed with normal farming if no fire was found
+        if not foundFire then
+            local currentPollen = getCurrentPollen()
+            local atField = character:FindFirstChild("HumanoidRootPart") and 
+                           (character.HumanoidRootPart.Position - currentFieldPos).Magnitude < FIELD_RADIUS
+            local atHive = character:FindFirstChild("HumanoidRootPart") and 
+                          (character.HumanoidRootPart.Position - HIVE_POSITION).Magnitude < FIELD_RADIUS
+            local isStationary = checkIfStationary()
 
-                -- Update status text
-        if atField then
-            if currentPollen > lastPollenValue then
-                statusText.Text = string.format("Status: Collecting\nPollen: %d", currentPollen)
-                lastIncreaseTime = os.time()
-            elseif os.time() - lastIncreaseTime > INACTIVITY_THRESHOLD and isStationary then
-                -- Go to hive if no pollen increase for threshold time
-                pathfindTo(HIVE_POSITION, "Hive")
+            if atField then
+                if currentPollen > lastPollenValue then
+                    statusText.Text = string.format("Status: Collecting\nPollen: %d\nSpeed: %d", currentPollen, currentTweenSpeed)
+                    lastIncreaseTime = os.time()
+                elseif os.time() - lastIncreaseTime > INACTIVITY_THRESHOLD and isStationary then
+                    tweenTo(HIVE_POSITION, "Hive")
+                end
+                lastPollenValue = currentPollen
+            elseif atHive then
+                if currentPollen > 0 then
+                    convertPollen()
+                else
+                    tweenTo(currentFieldPos, "Field")
+                end
+            elseif not currentTween and not isConverting then
+                tweenTo(currentFieldPos, "Field")
             end
-            lastPollenValue = currentPollen
-        elseif atHive then
-            -- At hive
-            if currentPollen > 0 then
-                convertPollen()
-            else
-                -- Return to field if no pollen
-                pathfindTo(currentFieldPos, "Field")
+
+            -- Collect tokens if not currently targeting a fire
+            if not currentTargetFire then
+                collectTokens()
             end
-        elseif not isPathfinding and not isConverting then
-            -- Not at field or hive and not already moving - go to field
-            pathfindTo(currentFieldPos, "Field")
         end
-
-        -- Collect tokens if near them
-        collectTokens()
     end
     wait(POLLEN_CHECK_INTERVAL)
-end
-
--- [Your entire existing auto-farm script goes here]
--- Don't remove any of your original code
--- Just add this at the very end:
-
--- ==============================================
--- AUTO-SAVE SETTINGS SYSTEM (ADD THIS AT THE END)
--- ==============================================
-
-local HttpService = game:GetService("HttpService")
-local SETTINGS_FILE_NAME = "BeeSwarmAutoFarmSettings.json"
-
--- Function to save settings
-local function saveSettings()
-    local settings = {
-        fieldPosition = {X = currentFieldPos.X, Y = currentFieldPos.Y, Z = currentFieldPos.Z},
-        hivePosition = {X = HIVE_POSITION.X, Y = HIVE_POSITION.Y, Z = HIVE_POSITION.Z}
-    }
-    
-    pcall(function()
-        local json = HttpService:JSONEncode(settings)
-        if not isfolder("BeeSwarmAutoFarm") then
-            makefolder("BeeSwarmAutoFarm")
-        end
-        writefile("BeeSwarmAutoFarm/"..SETTINGS_FILE_NAME, json)
-    end)
-end
-
--- Function to load settings
-local function loadSettings()
-    local defaultField = Vector3.new(-750.04, 73.12, -92.81)
-    local defaultHive = Vector3.new(-723.39, 74.99, 27.44)
-    
-    if not isfolder("BeeSwarmAutoFarm") or not isfile("BeeSwarmAutoFarm/"..SETTINGS_FILE_NAME) then
-        return defaultField, defaultHive
-    end
-    
-    local success, settings = pcall(function()
-        local json = readfile("BeeSwarmAutoFarm/"..SETTINGS_FILE_NAME)
-        return HttpService:JSONDecode(json)
-    end)
-    
-    if not success or not settings then
-        return defaultField, defaultHive
-    end
-    
-    return Vector3.new(settings.fieldPosition.X, settings.fieldPosition.Y, settings.fieldPosition.Z),
-           Vector3.new(settings.hivePosition.X, settings.hivePosition.Y, settings.hivePosition.Z)
-end
-
--- Load saved settings when script starts
-local loadedField, loadedHive = loadSettings()
-currentFieldPos = loadedField
-HIVE_POSITION = loadedHive
-
--- Update the input boxes to show loaded values
-fieldInputBox.Text = string.format("Vector3.new(%d, %d, %d)", currentFieldPos.X, currentFieldPos.Y, currentFieldPos.Z)
-hiveInputBox.Text = string.format("Vector3.new(%d, %d, %d)", HIVE_POSITION.X, HIVE_POSITION.Y, HIVE_POSITION.Z)
-
--- Save settings whenever coordinates change
-fieldSetButton.MouseButton1Click:Connect(function()
-    wait(0.1) -- Small delay to ensure values are updated
-    saveSettings()
-end)
-
-hiveSetButton.MouseButton1Click:Connect(function()
-    wait(0.1) -- Small delay to ensure values are updated
-    saveSettings()
-end)
-
--- Also connect touch events for mobile
-if isMobile then
-    fieldSetButton.TouchTap:Connect(function()
-        wait(0.1)
-        saveSettings()
-    end)
-    
-    hiveSetButton.TouchTap:Connect(function()
-        wait(0.1)
-        saveSettings()
-    end)
 end
