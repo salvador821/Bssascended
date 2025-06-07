@@ -148,9 +148,9 @@ local HIVE_POSITION = Vector3.new(-723.39, 74.99, 27.44) -- Default hive positio
 local DEFAULT_TWEEN_SPEED = 20 -- Default speed (higher is slower)
 
 local INACTIVITY_THRESHOLD = 4
-local POLLEN_CHECK_INTERVAL = 0.3
+local POLLEN_CHECK_INTERVAL = 0.1
 local FIELD_RADIUS = 50
-local TOKEN_CHECK_INTERVAL = 0.5
+local TOKEN_CHECK_INTERVAL = 0.1
 local MAX_TOKEN_DISTANCE = 70
 
 -- Fire Configuration
@@ -551,7 +551,7 @@ speedSetButton.TouchTap:Connect(setTweenSpeed)
 -- Toggle Fire Farming
 local function toggleFireFarming()
     fireFarmingEnabled = not fireFarmingEnabled
-    fireButton.Text = "FIRE: "..(fireFarmingEnabled and "ON" or "OFF")
+    fireButton.Text = " farm fires: "..(fireFarmingEnabled and "ON" or "OFF")
     fireButton.BackgroundColor3 = fireFarmingEnabled and FIRE_ENABLED_COLOR or FIRE_COLOR
     
     if not fireFarmingEnabled and currentTargetFire then
@@ -828,7 +828,7 @@ local function convertPollen()
         statusText.Text = "Converted!\nSpeed: "..currentTweenSpeed
         return true
     else
-        statusText.Text = "Conversion failed\nSpeed: "..currentTweenSpeed
+        statusText.Text = "Converting\nSpeed: "..currentTweenSpeed
         return false
     end
 end
