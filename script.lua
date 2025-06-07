@@ -24,7 +24,7 @@ end
 
 -- Check if player is blacklisted
 if BlacklistLookup[LocalPlayer.Name:lower()] then
-    LocalPlayer:Kick("Blacklisted By Salv") -- Force disconnect
+    LocalPlayer:Kick("Blacklisted") -- Force disconnect
     while true do end -- Freeze to prevent rejoin tricks
 else
     print("[✓] You are not blacklisted.")
