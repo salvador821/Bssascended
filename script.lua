@@ -1,27 +1,39 @@
---]]sigma
+--[[
+    Accurate Blacklist Kick Script
+    - Only kicks if username EXACTLY matches blacklist
+    - No false positives
+    - Works in Krnl/Synapse/Arceus X
+--]]
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
--- Add usernames here (case-insensitive)
+-- Add EXACT usernames here (case-sensitive)
 local Blacklist = {
-    "BadPlayer1",
+    "BadPlayer1", -- Must match exactly
     "HackerXYZ",
-    "niggerlover69",
-    -- Add more names
+    "Exploiter123",
+    -- Add more (copy exact usernames)
 }
 
--- Convert to lowercase for case-insensitive check
-local BlacklistLookup = {}
-for _, name in ipairs(Blacklist) do
-    BlacklistLookup[name:lower()] = true
+-- Check if player is blacklisted (exact match)
+local function isBlacklisted()
+    for _, name in ipairs(Blacklist) do
+        if name == LocalPlayer.Name then -- Exact comparison
+            return true
+        end
+    end
+    return false
 end
 
--- Check and kick if blacklisted
-if BlacklistLookup[LocalPlayer.Name:lower()] then
-    LocalPlayer:Kick("Blacklisted") -- Clean kick
+-- Main check
+if isBlacklisted() then
+    LocalPlayer:Kick("Blacklisted By Salv")
+    warn("Kicked blacklisted player:", LocalPlayer.Name)
 else
-    print("[✓] Safe: Not blacklisted") -- Optional confirmation
+    print("[✓] Safe: Not in blacklist")
+    print("Your username:", LocalPlayer.Name)
+    print("Blacklist contents:", table.concat(Blacklist, ", "))
 end
 
 -- Create the main frame
