@@ -149,9 +149,9 @@ local DEFAULT_TWEEN_SPEED = 20 -- Default speed (higher is slower)
 
 local INACTIVITY_THRESHOLD = 4
 local POLLEN_CHECK_INTERVAL = 0.1
-local FIELD_RADIUS = 50
+local FIELD_RADIUS = 49
 local TOKEN_CHECK_INTERVAL = 0.1
-local MAX_TOKEN_DISTANCE = 70
+local MAX_TOKEN_DISTANCE = 60
 
 -- Fire Configuration
 local FIRE_DETECTION_RANGE = 70
