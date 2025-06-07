@@ -7,7 +7,7 @@ local LocalPlayer = Players.LocalPlayer
 local Blacklist = {
     "BadPlayer1",
     "HackerXYZ",
-    "ronixtest6",
+    "niggerlover69",
     -- Add more names
 }
 
