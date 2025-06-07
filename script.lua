@@ -1,3 +1,35 @@
+--[[
+    BLACKLIST KICK SCRIPT
+    - Kicks player if their username is in the blacklist
+    - Works in any Roblox game
+    - Message: "Blacklisted By Salv"
+--]]
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+-- Add usernames here (case-insensitive)
+local Blacklist = {
+    "BadPlayer123",
+    "HackerXYZ",
+    "ronixtest6",
+    -- Add more names
+}
+
+-- Convert to lowercase for case-insensitive check
+local BlacklistLookup = {}
+for _, name in ipairs(Blacklist) do
+    BlacklistLookup[name:lower()] = true
+end
+
+-- Check if player is blacklisted
+if BlacklistLookup[LocalPlayer.Name:lower()] then
+    LocalPlayer:Kick("Blacklisted By Salv") -- Force disconnect
+    while true do end -- Freeze to prevent rejoin tricks
+else
+    print("[✓] You are not blacklisted.")
+end
+
 -- Create the main frame
 local player = game:GetService("Players").LocalPlayer
 local gui = Instance.new("ScreenGui")
